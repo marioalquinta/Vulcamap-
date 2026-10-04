@@ -1,0 +1,210 @@
+html
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VulcaMap - Edición Comercial</title>
+    <!-- Hojas de estilo de Mapas -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background-color: #f1f5f9; }
+        
+        header { background-color: #0f172a; color: white; padding: 12px; text-align: center; font-size: 1.2rem; font-weight: bold; }
+        
+        /* Barra superior de Filtros */
+        #filter-bar {
+            background-color: white; padding: 10px 15px; display: flex; gap: 10px; 
+            align-items: center; border-bottom: 1px solid #e2e8f0; z-index: 1001; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        #filter-bar input { flex: 1; min-width: 150px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; }
+        .filter-btn { padding: 8px 14px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 4px; transition: all 0.2s; }
+        .filter-btn.active { background-color: #3b82f6; color: white; border-color: #2563eb; }
+
+        #container { display: flex; flex: 1; position: relative; overflow: hidden; }
+        #map { flex: 1; height: 100%; z-index: 1; }
+        
+        /* Botón Flotante GPS */
+        #gps-btn {
+            position: absolute; bottom: 25px; left: 25px; z-index: 1000;
+            background: white; border: none; padding: 12px; border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; font-size: 1.4rem;
+            display: flex; align-items: center; justify-content: center; width: 50px; height: 50px;
+        }
+
+        /* Panel de registro */
+        #form-panel {
+            position: absolute; top: 20px; right: 20px; z-index: 1000;
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 320px;
+            display: none; flex-direction: column; gap: 12px;
+        }
+        #form-panel h3 { color: #0f172a; font-size: 1.1rem; }
+        #form-panel input, #form-panel select, #form-panel textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; }
+        
+        .rating-container { display: flex; flex-direction: column; gap: 4px; }
+        .rating-container label { font-size: 0.85rem; color: #475569; font-weight: 500; }
+        .stars { display: flex; gap: 5px; font-size: 1.6rem; color: #cbd5e1; cursor: pointer; }
+        .star.active { color: #f59e0b; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 5px; }
+        button { padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        button.save { background-color: #10b981; color: white; flex: 1; }
+        button.cancel { background-color: #ef4444; color: white; flex: 1; }
+
+        /* Estilos específicos para elementos Premium */
+        .premium-popup { border-left: 4px solid #f59e0b; padding-left: 4px; }
+        .premium-badge { background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; border: 1px solid #fcd34d; display: inline-block; margin-bottom: 4px; }
+        
+        @media (max-width: 768px) {
+            #filter-bar { flex-wrap: wrap; }
+            #filter-bar input { width: 100%; flex: none; }
+            #container { flex-direction: column; }
+            #form-panel { position: static; width: 100%; border-radius: 0; box-shadow: none; border-top: 2px solid #e2e8f0; }
+            #gps-btn { bottom: auto; top: 20px; left: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>🛠️ VulcaMap Profesional</header>
+
+    <div id="filter-bar">
+        <input type="text" id="search-input" placeholder="Buscar vulcanización..." oninput="applyFilters()">
+        <button id="btn-filter-24h" class="filter-btn" onclick="toggleFilter('24h')">⏰ Solo 24 Horas</button>
+        <button id="btn-filter-stars" class="filter-btn" onclick="toggleFilter('stars')">⭐ Mejor Valoradas (4+)</button>
+    </div>
+    
+    <div id="container">
+        <div id="map"></div>
+        
+        <button id="gps-btn" onclick="findMe()" title="Mi Ubicación">📍</button>
+
+        <!-- Formulario -->
+        <div id="form-panel">
+            <h3>📍 Agregar Vulcanización</h3>
+            <p style="font-size: 0.8rem; color: #64748b;">Completa los datos del taller técnico.</p>
+            <input type="text" id="vulca-name" placeholder="Nombre de la vulcanización" required>
+            <input type="text" id="vulca-phone" placeholder="Teléfono (Ej: +569...)">
+            <select id="vulca-schedule">
+                <option value="Horario Comercial">Horario Comercial</option>
+                <option value="24 Horas">Servicio 24 Horas ⏰</option>
+                <option value="Solo Móvil">Solo Móvil / Domicilio 🛞</option>
+            </select>
+            
+            <div class="rating-container">
+                <label>Tu calificación inicial:</label>
+                <div class="stars" id="star-rating">
+                    <span class="star" data-value="1">★</span>
+                    <span class="star" data-value="2">★</span>
+                    <span class="star" data-value="3">★</span>
+                    <span class="star" data-value="4">★</span>
+                    <span class="star" data-value="5">★</span>
+                </div>
+            </div>
+
+            <textarea id="vulca-desc" placeholder="¿Qué servicios o ventajas ofrece este local?"></textarea>
+            
+            <div class="btn-group">
+                <button class="cancel" onclick="closeForm()">Cancelar</button>
+                <button class="save" onclick="saveVulcaCloud()">Publicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts de Mapas -->
+    <script src="https://unpkg.com"></script>
+    
+    <!-- Módulos de Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://gstatic.com";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://gstatic.com";
+
+        // CONFIGURACIÓN DE FIREBASE
+        const firebaseConfig = {
+            apiKey: "TU_API_KEY",
+            authDomain: "TU_://firebaseapp.com",
+            projectId: "TU_PROYECTO",
+            storageBucket: "TU_://appspot.com",
+            messagingSenderId: "TU_ID",
+            appId: "TU_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const vulcasRef = collection(db, "vulcanizaciones");
+
+        const map = L.map('map').setView([-33.4180, -70.6650], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+        let tempCoords = null;
+        let userLocationMarker = null;
+        let selectedRating = 5;
+        let localVulcasRawData = [];
+        let filters = { text: '', only24h: false, highStars: false };
+
+        // Lógica de estrellas del formulario
+        const stars = document.querySelectorAll('.star');
+        stars.forEach(star => {
+            star.addEventListener('click', (e) => {
+                selectedRating = parseInt(e.target.getAttribute('data-value'));
+                updateStarUI(selectedRating);
+            });
+        });
+
+        function updateStarUI(rating) {
+            stars.forEach(star => {
+                const value = parseInt(star.getAttribute('data-value'));
+                if (value <= rating) star.classList.add('active');
+                else star.classList.remove('active');
+            });
+        }
+        updateStarUI(5);
+
+        // Escuchar base de datos en tiempo real
+        onSnapshot(vulcasRef, (snapshot) => {
+            localVulcasRawData = [];
+            snapshot.forEach((doc) => {
+                localVulcasRawData.push(doc.data());
+            });
+            window.applyFilters();
+        });
+
+        window.applyFilters = function() {
+            map.eachLayer((layer) => {
+                if (layer instanceof L.Marker && layer !== userLocationMarker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            const searchText = document.getElementById('search-input').value.toLowerCase();
+
+            localVulcasRawData.forEach(data => {
+                if (searchText && !data.name.toLowerCase().includes(searchText)) return;
+                if (filters.only24h && data.schedule !== '24 Horas') return;
+                if (filters.highStars && (data.rating || 5) < 4) return;
+
+                createMarker(data);
+            });
+        }
+
+        window.toggleFilter = function(type) {
+            if (type === '24h') {
+                filters.only24h = !filters.only24h;
+                document.getElementById('btn-filter-24h').classList.toggle('active', filters.only24h);
+            } else if (type === 'stars') {
+                filters.highStars = !filters.highStars;
+                document.getElementById('btn-filter-stars').classList.toggle('active', filters.highStars);
+            }
+            window.applyFilters();
+        }
+
+        // Crear pines diferenciando los Premium de los normales
+        function createMarker(data) {
+            let marker;
+            
+            if (data.isPremium) {
+                // Pin personalizado dorado usando emojis HTML nativos como icono
+                const crownIcon = L.divIcon({
